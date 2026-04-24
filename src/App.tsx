@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { browseAuctionList, normalizeAuctionInput, refreshAuctionData } from './lib/kbid'
 import {
   loadActiveView,
@@ -41,6 +41,7 @@ function App() {
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
   const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
   const [focusedLotId, setFocusedLotId] = useState<string | null>(null)
+  const prefetchedUrls = useRef<Set<string>>(new Set())
 
   const selectedAuction = useMemo(() => {
     if (!selectedAuctionId) {
@@ -188,7 +189,8 @@ function App() {
 
     const nextLots = allLots.slice(currentLotIndex + 1, currentLotIndex + 1 + PREFETCH_COUNT)
     for (const lot of nextLots) {
-      if (lot.imageUrl) {
+      if (lot.imageUrl && !prefetchedUrls.current.has(lot.imageUrl)) {
+        prefetchedUrls.current.add(lot.imageUrl)
         const img = new Image()
         img.src = lot.imageUrl
       }
