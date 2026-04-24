@@ -611,6 +611,15 @@ function App() {
                     <div className="swipe-image-wrap">
                       <a href={currentLot.itemUrl} target="_blank" rel="noreferrer" className="swipe-image-link">
                         <div className="lot-chip lot-chip-overlay">Lot {currentLot.lotNumber}</div>
+                        {currentLotDecision === 'saved' || currentLotDecision === 'ignored' ? (
+                          <div
+                            className={`decision-chip-overlay ${currentLotDecision}`}
+                            aria-label={formatDecisionLabel(currentLotDecision)}
+                            title={formatDecisionLabel(currentLotDecision)}
+                          >
+                            {currentLotDecision === 'saved' ? '✓' : '✕'}
+                          </div>
+                        ) : null}
                       {currentLot.imageUrl ? (
                         <>
                           <img
@@ -638,9 +647,6 @@ function App() {
                       <h3>{currentLot.title}</h3>
                       <p className="pricing">{formatBidSummary(currentLot.currentBid, currentLot.nextBid)}</p>
                       <p className="meta">{formatLotMeta(currentLot.timeRemaining, currentLot.beginsClosing)}</p>
-                      <p className={`lot-state ${currentLotDecision ?? 'unreviewed'}`}>
-                        Status: {formatDecisionLabel(currentLotDecision)}
-                      </p>
                     </div>
                   </article>
                 ) : (
