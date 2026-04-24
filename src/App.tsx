@@ -15,6 +15,7 @@ import type { AuctionBrowseFilters, AuctionBrowseItem, SwipeDecision, TrackedAuc
 type AppView = 'import' | 'swipe' | 'saved'
 
 const SWIPE_THRESHOLD = 60
+const PREFETCH_COUNT = 3
 const DEFAULT_BROWSE_FILTERS: AuctionBrowseFilters = {
   distanceRadius: '10',
   distanceZip: '55014',
@@ -179,6 +180,20 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [activeView, currentLot, selectedAuction, triggerDecision])
+
+  useEffect(() => {
+    if (activeView !== 'swipe' || currentLotIndex < 0) {
+      return
+    }
+
+    const nextLots = allLots.slice(currentLotIndex + 1, currentLotIndex + 1 + PREFETCH_COUNT)
+    for (const lot of nextLots) {
+      if (lot.imageUrl) {
+        const img = new Image()
+        img.src = lot.imageUrl
+      }
+    }
+  }, [activeView, allLots, currentLotIndex])
 
   const isSwipeImageLoading = Boolean(currentLot?.imageUrl) && loadedSwipeImageLotId !== currentLot?.id
 
