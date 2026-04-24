@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { browseAuctionList, normalizeAuctionInput, refreshAuctionData } from './lib/kbid'
 import {
+  loadActiveView,
   loadAuctionDecisions,
   loadSettings,
   saveAuctionDecisions,
+  saveActiveView,
   loadTrackedAuctions,
   saveSettings,
   saveTrackedAuctions,
@@ -26,7 +28,7 @@ function App() {
   const [selectedAuctionId, setSelectedAuctionId] = useState<string | null>(
     () => loadTrackedAuctions()[0]?.id ?? null,
   )
-  const [activeView, setActiveView] = useState<AppView>('import')
+  const [activeView, setActiveView] = useState<AppView>(() => loadActiveView())
   const [inputError, setInputError] = useState('')
   const [loadingAuctionId, setLoadingAuctionId] = useState<string | null>(null)
   const [browseFilters, setBrowseFilters] = useState<AuctionBrowseFilters>(DEFAULT_BROWSE_FILTERS)
@@ -37,6 +39,7 @@ function App() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
   const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
+  const [focusedLotId, setFocusedLotId] = useState<string | null>(null)
 
   const selectedAuction = useMemo(() => {
     if (!selectedAuctionId) {
@@ -71,7 +74,32 @@ function App() {
     [allLots, selectedAuctionDecisions],
   )
 
-  const currentLot = undecidedLots[0]
+  const currentLot = useMemo(() => {
+    if (focusedLotId) {
+      const focused = allLots.find((lot) => lot.id === focusedLotId)
+      if (focused) {
+        return focused
+      }
+    }
+
+    if (undecidedLots[0]) {
+      return undecidedLots[0]
+    }
+
+    return null
+  }, [allLots, focusedLotId, undecidedLots])
+
+  const currentLotIndex = useMemo(() => {
+    if (!currentLot) {
+      return -1
+    }
+
+    return allLots.findIndex((lot) => lot.id === currentLot.id)
+  }, [allLots, currentLot])
+
+  const canGoBack = currentLotIndex > 0
+  const canGoForward = currentLotIndex >= 0 && currentLotIndex < allLots.length - 1
+  const currentLotDecision = currentLot && selectedAuction ? selectedAuctionDecisions[currentLot.id] : undefined
 
   const reviewedCount = allLots.length - undecidedLots.length
   const progressPct = allLots.length ? Math.round((reviewedCount / allLots.length) * 100) : 0
@@ -80,6 +108,9 @@ function App() {
     if (!selectedAuction || !currentLot) {
       return
     }
+
+    const currentIndex = allLots.findIndex((lot) => lot.id === currentLot.id)
+    const nextLotId = currentIndex >= 0 ? allLots[currentIndex + 1]?.id ?? null : null
 
     setSwipeCue(cue)
     window.setTimeout(() => {
@@ -96,8 +127,31 @@ function App() {
         saveAuctionDecisions(next)
         return next
       })
+      setFocusedLotId(nextLotId)
     }, 120)
-  }, [currentLot, selectedAuction])
+  }, [allLots, currentLot, selectedAuction])
+
+  const moveLotFocus = useCallback((delta: number) => {
+    if (!currentLot) {
+      return
+    }
+
+    const index = allLots.findIndex((lot) => lot.id === currentLot.id)
+    if (index < 0) {
+      return
+    }
+
+    const target = allLots[index + delta]
+    if (!target) {
+      return
+    }
+
+    setFocusedLotId(target.id)
+  }, [allLots, currentLot])
+
+  useEffect(() => {
+    saveActiveView(activeView)
+  }, [activeView])
 
   useEffect(() => {
     if (activeView !== 'swipe' || !currentLot || !selectedAuction) {
@@ -128,6 +182,11 @@ function App() {
 
   const isSwipeImageLoading = Boolean(currentLot?.imageUrl) && loadedSwipeImageLotId !== currentLot?.id
 
+  const selectAuction = (id: string | null) => {
+    setSelectedAuctionId(id)
+    setFocusedLotId(null)
+  }
+
   const addAuctionByInput = (input: string, label?: string) => {
     const normalized = normalizeAuctionInput(input)
     if (!normalized) {
@@ -137,7 +196,7 @@ function App() {
 
     const exists = trackedAuctions.find((entry) => entry.auctionId === normalized.auctionId)
     if (exists) {
-      setSelectedAuctionId(exists.id)
+      selectAuction(exists.id)
       setAuctionInput('')
       setInputError('')
       return true
@@ -154,7 +213,7 @@ function App() {
     const nextAuctions = [nextAuction, ...trackedAuctions]
     setTrackedAuctions(nextAuctions)
     saveTrackedAuctions(nextAuctions)
-    setSelectedAuctionId(nextAuction.id)
+    selectAuction(nextAuction.id)
     setActiveView('import')
     setAuctionInput('')
     setInputError('')
@@ -198,7 +257,7 @@ function App() {
     }
 
     if (selectedAuctionId === id) {
-      setSelectedAuctionId(nextAuctions[0]?.id ?? null)
+      selectAuction(nextAuctions[0]?.id ?? null)
     }
   }
 
@@ -262,20 +321,28 @@ function App() {
     saveSettings(nextSettings)
   }
 
-  const resetAuctionReview = () => {
-    if (!selectedAuction) {
+  const resetAuctionReview = (auctionId: string) => {
+    if (!auctionId) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      'Reset all decisions for this auction? This will clear both saved and ignored lots.',
+    )
+
+    if (!confirmed) {
       return
     }
 
     setAuctionDecisions((prev) => {
       const next = {
         ...prev,
-        [selectedAuction.auctionId]: {},
+        [auctionId]: {},
       }
       saveAuctionDecisions(next)
       return next
     })
-    setActiveView('swipe')
+    setFocusedLotId(null)
   }
 
   const onTouchStart = (x: number) => {
@@ -306,8 +373,13 @@ function App() {
       <header className="app-header">
         <div className="hero-copy">
           <h1>SwipeBid</h1>
-          <p>Import an auction, swipe right to save, swipe left to ignore, then open favorites to bid.</p>
         </div>
+        <details className="hero-help">
+          <summary aria-label="How it works">?</summary>
+          <div className="hero-help-popover">
+            Import an auction URL or ID, refresh to parse lots, then swipe and review favorites.
+          </div>
+        </details>
       </header>
 
       <nav className="flow-tabs">
@@ -468,7 +540,7 @@ function App() {
                     </small>
                   </div>
                   <div className="inline-actions">
-                    <button type="button" onClick={() => setSelectedAuctionId(auction.id)}>
+                    <button type="button" onClick={() => selectAuction(auction.id)}>
                       Select
                     </button>
                     <button
@@ -481,6 +553,11 @@ function App() {
                     <button type="button" className="danger" onClick={() => removeAuction(auction.id)}>
                       Remove
                     </button>
+                    {auction.id === selectedAuctionId ? (
+                      <button type="button" onClick={() => resetAuctionReview(auction.auctionId)}>
+                        Reset Decisions
+                      </button>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -512,8 +589,12 @@ function App() {
                     </p>
                   </div>
                   <div className="swipe-stats">
-                    <span>Saved: {savedLots.length}</span>
-                    <span>Ignored: {ignoredCount}</span>
+                    <span className="stat-pill saved" aria-label={`Saved lots: ${savedLots.length}`} title="Saved lots">
+                      ✓ {savedLots.length}
+                    </span>
+                    <span className="stat-pill ignored" aria-label={`Ignored lots: ${ignoredCount}`} title="Ignored lots">
+                      ✕ {ignoredCount}
+                    </span>
                   </div>
                 </div>
 
@@ -528,6 +609,8 @@ function App() {
                     onTouchEnd={(event) => onTouchEnd(event.changedTouches[0].clientX)}
                   >
                     <div className="swipe-image-wrap">
+                      <a href={currentLot.itemUrl} target="_blank" rel="noreferrer" className="swipe-image-link">
+                        <div className="lot-chip lot-chip-overlay">Lot {currentLot.lotNumber}</div>
                       {currentLot.imageUrl ? (
                         <>
                           <img
@@ -549,15 +632,15 @@ function App() {
                       ) : (
                         <div className="image-placeholder">No image available</div>
                       )}
+                      </a>
                     </div>
                     <div className="swipe-content">
-                      <div className="lot-chip">Lot {currentLot.lotNumber}</div>
                       <h3>{currentLot.title}</h3>
                       <p className="pricing">{formatBidSummary(currentLot.currentBid, currentLot.nextBid)}</p>
                       <p className="meta">{formatLotMeta(currentLot.timeRemaining, currentLot.beginsClosing)}</p>
-                      <a href={currentLot.itemUrl} target="_blank" rel="noreferrer">
-                        Open original listing
-                      </a>
+                      <p className={`lot-state ${currentLotDecision ?? 'unreviewed'}`}>
+                        Status: {formatDecisionLabel(currentLotDecision)}
+                      </p>
                     </div>
                   </article>
                 ) : (
@@ -576,14 +659,15 @@ function App() {
                   </button>
                 </div>
 
-                <div className="inline-actions">
-                  <button type="button" onClick={resetAuctionReview}>
-                    Reset Decisions
+                <div className="history-row">
+                  <button type="button" onClick={() => moveLotFocus(-1)} disabled={!canGoBack}>
+                    Back Lot
                   </button>
-                  <button type="button" onClick={() => setActiveView('saved')} disabled={!savedLots.length}>
-                    Go To Favorites
+                  <button type="button" onClick={() => moveLotFocus(1)} disabled={!canGoForward}>
+                    Forward Lot
                   </button>
                 </div>
+
               </>
             ) : (
               <div className="empty-state">
@@ -602,6 +686,13 @@ function App() {
                 {savedLots.length} saved out of {allLots.length} lots in this auction
               </p>
             </div>
+            {selectedAuction ? (
+              <div className="inline-actions">
+                <button type="button" onClick={() => resetAuctionReview(selectedAuction.auctionId)}>
+                  Reset Decisions
+                </button>
+              </div>
+            ) : null}
             {savedLots.length ? (
               <div className="saved-grid">
                 {savedLots.map((lot) => (
@@ -705,6 +796,18 @@ function formatLotMeta(timeRemaining: string | undefined, beginsClosing: string 
   }
 
   return 'Timing not available'
+}
+
+function formatDecisionLabel(decision: SwipeDecision | undefined): string {
+  if (decision === 'saved') {
+    return 'Saved'
+  }
+
+  if (decision === 'ignored') {
+    return 'Ignored'
+  }
+
+  return 'Unreviewed'
 }
 
 function triggerFavoriteUndo(

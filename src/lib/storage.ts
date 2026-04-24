@@ -3,6 +3,7 @@ import type { AppSettings, AuctionDecisionStore, TrackedAuction } from '../types
 const TRACKED_AUCTIONS_KEY = 'kbid-browser.tracked-auctions.v1'
 const APP_SETTINGS_KEY = 'kbid-browser.settings.v1'
 const AUCTION_DECISIONS_KEY = 'kbid-browser.auction-decisions.v1'
+const ACTIVE_VIEW_KEY = 'kbid-browser.active-view.v1'
 
 const defaultSettings: AppSettings = {
   proxyPrefix: 'https://corsproxy.io/?url=',
@@ -71,4 +72,17 @@ export function loadAuctionDecisions(): AuctionDecisionStore {
 
 export function saveAuctionDecisions(store: AuctionDecisionStore): void {
   localStorage.setItem(AUCTION_DECISIONS_KEY, JSON.stringify(store))
+}
+
+export function loadActiveView(): 'import' | 'swipe' | 'saved' {
+  const raw = localStorage.getItem(ACTIVE_VIEW_KEY)
+  if (raw === 'import' || raw === 'swipe' || raw === 'saved') {
+    return raw
+  }
+
+  return 'import'
+}
+
+export function saveActiveView(view: 'import' | 'swipe' | 'saved'): void {
+  localStorage.setItem(ACTIVE_VIEW_KEY, view)
 }
