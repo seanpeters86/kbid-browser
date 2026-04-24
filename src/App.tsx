@@ -611,10 +611,14 @@ function App() {
                     <div className="swipe-image-wrap">
                       <a href={currentLot.itemUrl} target="_blank" rel="noreferrer" className="swipe-image-link">
                         <div className="lot-chip lot-chip-overlay">Lot {currentLot.lotNumber}</div>
-                        {currentLotDecision === 'saved' ? (
-                          <div className="decision-chip-overlay saved" aria-label="Saved" title="Saved">✓</div>
-                        ) : currentLotDecision === 'ignored' ? (
-                          <div className="decision-chip-overlay ignored" aria-label="Ignored" title="Ignored">✕</div>
+                        {currentLotDecision === 'saved' || currentLotDecision === 'ignored' ? (
+                          <div
+                            className={`decision-chip-overlay ${currentLotDecision}`}
+                            aria-label={formatDecisionLabel(currentLotDecision)}
+                            title={formatDecisionLabel(currentLotDecision)}
+                          >
+                            {currentLotDecision === 'saved' ? '✓' : '✕'}
+                          </div>
                         ) : null}
                       {currentLot.imageUrl ? (
                         <>
