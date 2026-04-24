@@ -645,11 +645,32 @@ function App() {
                             {formatMoney(currentLot.nextBid)}
                           </div>
                         ) : null}
-                        {formatTimeShort(currentLot.timeRemaining) ? (
-                          <div className="time-chip-overlay">
-                            {formatTimeShort(currentLot.timeRemaining)}
-                          </div>
-                        ) : null}
+                        {(() => {
+                          const timeShort = formatTimeShort(currentLot.timeRemaining)
+                          if (timeShort) {
+                            return (
+                              <div
+                                className="time-chip-overlay"
+                                aria-label={`Time remaining: ${currentLot.timeRemaining}`}
+                                title={`Time remaining: ${currentLot.timeRemaining}`}
+                              >
+                                {timeShort}
+                              </div>
+                            )
+                          }
+                          if (currentLot.beginsClosing) {
+                            return (
+                              <div
+                                className="time-chip-overlay"
+                                aria-label={`Begins closing: ${currentLot.beginsClosing}`}
+                                title={`Begins closing: ${currentLot.beginsClosing}`}
+                              >
+                                {currentLot.beginsClosing}
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
                       {currentLot.imageUrl ? (
                         <>
                           <img
@@ -737,9 +758,32 @@ function App() {
                       ) : (
                         <div className="image-placeholder small">No image</div>
                       )}
-                      {formatTimeShort(lot.timeRemaining) ? (
-                        <div className="time-chip-overlay">{formatTimeShort(lot.timeRemaining)}</div>
-                      ) : null}
+                     {(() => {
+                        const timeShort = formatTimeShort(lot.timeRemaining)
+                        if (timeShort) {
+                          return (
+                            <div
+                              className="time-chip-overlay"
+                              aria-label={`Time remaining: ${lot.timeRemaining}`}
+                              title={`Time remaining: ${lot.timeRemaining}`}
+                            >
+                              {timeShort}
+                            </div>
+                          )
+                        }
+                        if (lot.beginsClosing) {
+                          return (
+                            <div
+                              className="time-chip-overlay"
+                              aria-label={`Begins closing: ${lot.beginsClosing}`}
+                              title={`Begins closing: ${lot.beginsClosing}`}
+                            >
+                              {lot.beginsClosing}
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
                     </div>
                     <div>
                       <div className="lot-chip">Lot {lot.lotNumber}</div>
@@ -831,9 +875,9 @@ function formatTimeShort(timeRemaining: string | undefined): string | null {
   const hoursMatch = timeRemaining.match(/(\d+)\s*h/i)
   const minutesMatch = timeRemaining.match(/(\d+)\s*m/i)
 
-  const d = daysMatch ? parseInt(daysMatch[1]) : 0
-  const h = hoursMatch ? parseInt(hoursMatch[1]) : 0
-  const m = minutesMatch ? parseInt(minutesMatch[1]) : 0
+  const d = daysMatch ? Number.parseInt(daysMatch[1], 10) : 0
+  const h = hoursMatch ? Number.parseInt(hoursMatch[1], 10) : 0
+  const m = minutesMatch ? Number.parseInt(minutesMatch[1], 10) : 0
 
   if (d > 0) return `${d}d`
   if (h > 0) return `${h}h`
