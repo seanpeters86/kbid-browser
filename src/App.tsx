@@ -27,6 +27,7 @@ function App() {
   const [loadingAuctionId, setLoadingAuctionId] = useState<string | null>(null)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
+  const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
 
   const selectedAuction = useMemo(() => {
     if (!selectedAuctionId) {
@@ -115,6 +116,21 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [activeView, currentLot, selectedAuction, triggerDecision])
+
+  useEffect(() => {
+    if (!currentLot) {
+      setLoadedSwipeImageLotId(null)
+      return
+    }
+
+    if (!currentLot.imageUrl) {
+      setLoadedSwipeImageLotId(currentLot.id)
+      return
+    }
+
+    setLoadedSwipeImageLotId(null)
+  }, [currentLot])
+  const isSwipeImageLoading = Boolean(currentLot?.imageUrl) && loadedSwipeImageLotId !== currentLot?.id
 
   const addAuction = () => {
     const normalized = normalizeAuctionInput(auctionInput)
@@ -227,8 +243,6 @@ function App() {
     saveSettings(nextSettings)
   }
 
-  const isLoadingSelection = loadingAuctionId === selectedAuctionId
-
   const resetAuctionReview = () => {
     if (!selectedAuction) {
       return
@@ -274,37 +288,6 @@ function App() {
         <div className="hero-copy">
           <h1>SwipeBid</h1>
           <p>Import an auction, swipe right to save, swipe left to ignore, then open favorites to bid.</p>
-        </div>
-        <div className="settings-panel">
-          <label htmlFor="proxy-prefix">Proxy Prefix (optional)</label>
-          <input
-            id="proxy-prefix"
-            type="text"
-            placeholder="https://api.allorigins.win/raw?url="
-            value={settings.proxyPrefix}
-            onChange={(event) => onSettingsChange(event.target.value)}
-          />
-          <small>
-            For prefixes that require substitution, use {'{url}'} placeholder.
-            Example: https://your-worker.example/fetch?url={'{url}'}
-          </small>
-          <div className="inline-actions">
-            <button
-              type="button"
-              onClick={() => onSettingsChange('https://api.allorigins.win/raw?url=')}
-            >
-              AllOrigins
-            </button>
-            <button
-              type="button"
-              onClick={() => onSettingsChange('https://corsproxy.io/?url=')}
-            >
-              corsproxy.io
-            </button>
-            <button type="button" onClick={() => onSettingsChange('')}>
-              Clear
-            </button>
-          </div>
         </div>
       </header>
 
@@ -402,7 +385,7 @@ function App() {
               <>
                 <div className="swipe-header">
                   <div>
-                    <h2>{selectedAuction.data.title}</h2>
+                    <h2 className="swipe-auction-title">{selectedAuction.data.title}</h2>
                     <p>
                       Reviewed {reviewedCount}/{allLots.length} ({progressPct}%)
                     </p>
@@ -425,7 +408,23 @@ function App() {
                   >
                     <div className="swipe-image-wrap">
                       {currentLot.imageUrl ? (
-                        <img src={currentLot.imageUrl} alt={currentLot.title} className="swipe-image" />
+                        <>
+                          <img
+                            key={currentLot.id}
+                            src={currentLot.imageUrl}
+                            alt={currentLot.title}
+                            className={`swipe-image ${isSwipeImageLoading ? 'is-loading' : ''}`}
+                            loading="eager"
+                            onLoad={() => setLoadedSwipeImageLotId(currentLot.id)}
+                            onError={() => setLoadedSwipeImageLotId(currentLot.id)}
+                          />
+                          {isSwipeImageLoading ? (
+                            <div className="image-loading-overlay" role="status" aria-live="polite">
+                              <div className="image-spinner" aria-hidden="true"></div>
+                              <span>Loading photo...</span>
+                            </div>
+                          ) : null}
+                        </>
                       ) : (
                         <div className="image-placeholder">No image available</div>
                       )}
@@ -462,9 +461,6 @@ function App() {
                   </button>
                   <button type="button" onClick={() => setActiveView('saved')} disabled={!savedLots.length}>
                     Go To Favorites
-                  </button>
-                  <button type="button" onClick={() => void refreshAuction(selectedAuction.id)} disabled={isLoadingSelection}>
-                    {isLoadingSelection ? 'Refreshing...' : 'Refresh Auction'}
                   </button>
                 </div>
               </>
@@ -520,6 +516,45 @@ function App() {
           </section>
         ) : null}
       </main>
+
+      {activeView === 'import' ? (
+        <section className="panel settings-drawer">
+          <details>
+            <summary>Proxy Settings</summary>
+            <div className="settings-panel">
+              <label htmlFor="proxy-prefix">Proxy Prefix (optional)</label>
+              <input
+                id="proxy-prefix"
+                type="text"
+                placeholder="https://corsproxy.io/?url="
+                value={settings.proxyPrefix}
+                onChange={(event) => onSettingsChange(event.target.value)}
+              />
+              <small>
+                For prefixes that require substitution, use {'{url}'} placeholder.
+                Example: https://your-worker.example/fetch?url={'{url}'}
+              </small>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  onClick={() => onSettingsChange('https://corsproxy.io/?url=')}
+                >
+                  corsproxy.io
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSettingsChange('https://api.allorigins.win/raw?url=')}
+                >
+                  AllOrigins
+                </button>
+                <button type="button" onClick={() => onSettingsChange('')}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          </details>
+        </section>
+      ) : null}
     </div>
   )
 }

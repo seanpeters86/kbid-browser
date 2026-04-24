@@ -142,6 +142,21 @@ button.danger {
   margin-top: 0.8rem;
 }
 
+.settings-drawer {
+  margin-top: 0.8rem;
+}
+
+.settings-drawer details > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+
+.settings-drawer details[open] > summary {
+  margin-bottom: 0.55rem;
+}
+
 .panel {
   background: rgba(19, 31, 46, 0.9);
   border: 1px solid var(--line);
@@ -216,6 +231,16 @@ button.danger {
   color: var(--muted);
 }
 
+.swipe-auction-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  max-width: 46ch;
+}
+
 .swipe-stats {
   text-align: right;
   display: grid;
@@ -264,6 +289,7 @@ button.danger {
   aspect-ratio: 4 / 3;
   background: #0b1522;
   padding: 0.35rem;
+  position: relative;
 }
 
 .swipe-image,
@@ -275,6 +301,41 @@ button.danger {
   display: block;
   border-radius: 0.65rem;
   background: #0b1522;
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+.swipe-image.is-loading {
+  opacity: 0.16;
+}
+
+.image-loading-overlay {
+  position: absolute;
+  inset: 0.35rem;
+  border-radius: 0.65rem;
+  display: grid;
+  place-content: center;
+  gap: 0.45rem;
+  justify-items: center;
+  background: radial-gradient(circle at 50% 45%, rgba(68, 160, 255, 0.12), rgba(11, 21, 34, 0.92));
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.image-spinner {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .swipe-content {

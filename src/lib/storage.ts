@@ -5,7 +5,7 @@ const APP_SETTINGS_KEY = 'kbid-browser.settings.v1'
 const AUCTION_DECISIONS_KEY = 'kbid-browser.auction-decisions.v1'
 
 const defaultSettings: AppSettings = {
-  proxyPrefix: '',
+  proxyPrefix: 'https://corsproxy.io/?url=',
 }
 
 export function loadTrackedAuctions(): TrackedAuction[] {
