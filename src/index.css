@@ -512,7 +512,7 @@ button.danger {
 .swipe-content {
   padding: 0.8rem;
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto;
   row-gap: 0.32rem;
 }
 
@@ -594,6 +594,21 @@ button.danger {
 .decision-chip-overlay.ignored {
   color: #ff9f9f;
   border-color: rgba(255, 159, 159, 0.45);
+}
+
+.price-chip-overlay {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 3;
+  background: rgba(13, 22, 33, 0.86);
+  color: #d6e9ff;
+  border: 1px solid rgba(142, 197, 255, 0.45);
+  border-radius: 999px;
+  padding: 0.2rem 0.52rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .lot-state {
