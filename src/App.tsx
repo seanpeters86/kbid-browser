@@ -637,6 +637,14 @@ function App() {
                             {currentLotDecision === 'saved' ? '✓' : '✕'}
                           </div>
                         ) : null}
+                        {currentLot.nextBid !== undefined ? (
+                          <div
+                            className="price-chip-overlay"
+                            title={formatBidSummary(currentLot.currentBid, currentLot.nextBid)}
+                          >
+                            {formatMoney(currentLot.nextBid)}
+                          </div>
+                        ) : null}
                       {currentLot.imageUrl ? (
                         <>
                           <img
@@ -662,7 +670,6 @@ function App() {
                     </div>
                     <div className="swipe-content">
                       <h3>{currentLot.title}</h3>
-                      <p className="pricing">{formatBidSummary(currentLot.currentBid, currentLot.nextBid)}</p>
                       <p className="meta">{formatLotMeta(currentLot.timeRemaining, currentLot.beginsClosing)}</p>
                     </div>
                   </article>
