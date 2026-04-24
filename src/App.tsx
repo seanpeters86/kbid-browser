@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { browseAuctionList, normalizeAuctionInput, refreshAuctionData } from './lib/kbid'
 import {
   loadActiveView,
@@ -15,6 +15,7 @@ import type { AuctionBrowseFilters, AuctionBrowseItem, SwipeDecision, TrackedAuc
 type AppView = 'import' | 'swipe' | 'saved'
 
 const SWIPE_THRESHOLD = 60
+const PREFETCH_COUNT = 3
 const DEFAULT_BROWSE_FILTERS: AuctionBrowseFilters = {
   distanceRadius: '10',
   distanceZip: '55014',
@@ -40,6 +41,7 @@ function App() {
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
   const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
   const [focusedLotId, setFocusedLotId] = useState<string | null>(null)
+  const prefetchedUrls = useRef<Set<string>>(new Set())
 
   const selectedAuction = useMemo(() => {
     if (!selectedAuctionId) {
@@ -179,6 +181,21 @@ function App() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [activeView, currentLot, selectedAuction, triggerDecision])
+
+  useEffect(() => {
+    if (activeView !== 'swipe' || currentLotIndex < 0) {
+      return
+    }
+
+    const nextLots = allLots.slice(currentLotIndex + 1, currentLotIndex + 1 + PREFETCH_COUNT)
+    for (const lot of nextLots) {
+      if (lot.imageUrl && !prefetchedUrls.current.has(lot.imageUrl)) {
+        prefetchedUrls.current.add(lot.imageUrl)
+        const img = new Image()
+        img.src = lot.imageUrl
+      }
+    }
+  }, [activeView, allLots, currentLotIndex])
 
   const isSwipeImageLoading = Boolean(currentLot?.imageUrl) && loadedSwipeImageLotId !== currentLot?.id
 
