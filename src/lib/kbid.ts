@@ -1,11 +1,180 @@
-import type { AuctionData, Lot } from '../types'
+import type { AuctionBrowseFilters, AuctionBrowseItem, AuctionData, Lot } from '../types'
 
 const AUCTION_URL_PATTERN = /k-bid\.com\/auction\/(\d+)/i
 const AUCTION_ID_PATTERN = /^(\d{3,})$/
 const ITEM_URL_PATTERN = /\/auction\/(\d+)\/item\/(\d+)/i
+const AUCTION_CARD_URL_PATTERN = /\/auction\/(\d+)(?:\b|\/)/i
 const MAX_FETCH_RETRIES = 3
 const BASE_RETRY_DELAY_MS = 350
 const FETCH_TIMEOUT_MS = 25000
+const MAX_AUCTION_PREVIEW_IMAGES = 5
+
+const DEFAULT_BROWSE_BASE_URL = 'https://www.k-bid.com/auction/list'
+const DEFAULT_BROWSE_QUERY = {
+  sort_field: 'end',
+  affiliate: '0',
+  closing: '',
+  closing_mask: '',
+} as const
+const DEFAULT_BROWSE_CATEGORY_IDS = ['19', '13', '26', '16', '12', '15', '17', '28', '14'] as const
+
+function abbreviateAuctionTitle(title: string): string {
+  const trimmed = title.replace(/\s+/g, ' ').trim()
+  if (trimmed.length <= 76) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, 73).trimEnd()}...`
+}
+
+function buildAuctionListUrl(filters: AuctionBrowseFilters): string {
+  const url = new URL(DEFAULT_BROWSE_BASE_URL)
+
+  for (const [key, value] of Object.entries(DEFAULT_BROWSE_QUERY)) {
+    url.searchParams.set(key, value)
+  }
+
+  url.searchParams.set('distance_radius', filters.distanceRadius)
+  url.searchParams.set('distance_zip', filters.distanceZip.trim() || '55014')
+
+  for (const categoryId of DEFAULT_BROWSE_CATEGORY_IDS) {
+    url.searchParams.append('auction_categories[]', categoryId)
+  }
+
+  return url.toString()
+}
+
+function parseAuctionLocation(contextText: string): string | undefined {
+  const explicitMatch = contextText.match(/Location:\s*(.*?)(?=\s+(?:Distance|Begins\s*Closing|Closing|Closes|Ends)\b|$)/i)
+  if (explicitMatch?.[1]) {
+    return explicitMatch[1].trim()
+  }
+
+  const cityStateMatch = contextText.match(/\b([A-Za-z .'-]+,\s*[A-Z]{2})\b/)
+  return cityStateMatch?.[1]?.trim()
+}
+
+function parseAuctionDistance(contextText: string): string | undefined {
+  const explicitMatch = contextText.match(/Distance:\s*([\d.]+\s*(?:mi|miles?))/i)
+  if (explicitMatch?.[1]) {
+    return explicitMatch[1].trim()
+  }
+
+  const shortMatch = contextText.match(/\b([\d.]+\s*(?:mi|miles?))\b/i)
+  return shortMatch?.[1]?.trim()
+}
+
+function parseAuctionClosing(contextText: string): string | undefined {
+  const explicitMatch = contextText.match(/(?:Begins\s*Closing|Closing|Closes|Ends?)\s*:?[\s]+(.*?)(?=\s{2,}|\s+(?:Distance|Location)\b|$)/i)
+  if (explicitMatch?.[1]) {
+    return explicitMatch[1].trim()
+  }
+
+  const dateishMatch = contextText.match(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w*,?\s+[A-Za-z]{3,9}\s+\d{1,2}(?:,\s*\d{4})?(?:\s+\d{1,2}:\d{2}\s*[AP]M)?\b/i)
+  return dateishMatch?.[0]?.trim()
+}
+
+function parseAuctionListFromHtml(html: string): AuctionBrowseItem[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const panels = Array.from(doc.querySelectorAll('.panel.panel-default'))
+  const auctionsById = new Map<string, AuctionBrowseItem>()
+
+  for (const panel of panels) {
+    const auctionAnchors = Array.from(panel.querySelectorAll('a[href*="/auction/"]:not([href*="/item/"])'))
+      .filter((anchor): anchor is HTMLAnchorElement => anchor instanceof HTMLAnchorElement)
+
+    const rootAnchor = auctionAnchors.find((anchor) => {
+      const text = extractTextFromNode(anchor)
+      return text && !/^view\s+auction$/i.test(text) && !/^view\s+\d+\s+items$/i.test(text)
+    }) ?? auctionAnchors[0]
+
+    if (!rootAnchor) {
+      continue
+    }
+
+    const absoluteUrl = toAbsoluteUrl(rootAnchor.getAttribute('href') ?? '')
+    const match = absoluteUrl.match(AUCTION_CARD_URL_PATTERN)
+    if (!match) {
+      continue
+    }
+
+    const auctionId = match[1]
+    const auctionUrl = `https://www.k-bid.com/auction/${auctionId}`
+
+    const titleFromNode = extractTextFromNode(panel.querySelector('.auction-title a'))
+    const titleFromAnchor = extractTextFromNode(rootAnchor)
+    const title = (titleFromNode || titleFromAnchor || `Auction ${auctionId}`).replace(/\s+/g, ' ').trim()
+
+    const locationIcon = panel.querySelector('i[title^="Location"]')
+    const locationText = extractTextFromNode(locationIcon?.parentElement ?? null)
+    const distanceIcon = panel.querySelector('i[title^="Distance"]')
+    const distanceText = extractTextFromNode(distanceIcon?.parentElement ?? null)
+
+    const timer = panel.querySelector('.auction-listing-timer')
+    const closingLabel = extractTextFromNode(
+      timer?.querySelector('b') ?? null,
+    ).replace(/\s+/g, ' ').trim()
+    const closingDate = extractTextFromNode(
+      timer?.querySelector('span[title]') ?? null,
+    ).replace(/\s+/g, ' ').trim()
+
+    const imageUrls = Array.from(panel.querySelectorAll(`a[href*="/auction/${auctionId}/item/"] img`))
+      .filter((img): img is HTMLImageElement => img instanceof HTMLImageElement)
+      .map((img) => extractImageSrc(img))
+      .filter((value): value is string => Boolean(value))
+      .slice(0, MAX_AUCTION_PREVIEW_IMAGES)
+
+    const contextText = extractTextFromNode(panel)
+    const nextItem: AuctionBrowseItem = {
+      auctionId,
+      auctionUrl,
+      title,
+      abbreviatedTitle: abbreviateAuctionTitle(title),
+      location: locationText || parseAuctionLocation(contextText),
+      distanceAway: distanceText || parseAuctionDistance(contextText),
+      closingDate: [closingLabel, closingDate].filter(Boolean).join(' ') || parseAuctionClosing(contextText),
+      imageUrls: Array.from(new Set(imageUrls)),
+    }
+
+    const existing = auctionsById.get(auctionId)
+    if (!existing) {
+      auctionsById.set(auctionId, nextItem)
+      continue
+    }
+
+    const nextScore = scoreAuctionCard(nextItem)
+    const existingScore = scoreAuctionCard(existing)
+    if (nextScore > existingScore) {
+      auctionsById.set(auctionId, nextItem)
+    }
+  }
+
+  return Array.from(auctionsById.values())
+}
+
+function scoreAuctionCard(item: AuctionBrowseItem): number {
+  let score = 0
+  if (item.title) score += 2
+  if (item.location) score += 1
+  if (item.distanceAway) score += 1
+  if (item.closingDate) score += 1
+  if (item.imageUrls.length) score += 1
+  return score
+}
+
+export async function browseAuctionList(
+  filters: AuctionBrowseFilters,
+  proxyPrefix: string,
+): Promise<{ url: string; auctions: AuctionBrowseItem[] }> {
+  const browseUrl = buildAuctionListUrl(filters)
+  const html = await fetchText(toProxiedUrl(browseUrl, proxyPrefix))
+  const auctions = parseAuctionListFromHtml(html)
+
+  return {
+    url: browseUrl,
+    auctions,
+  }
+}
 
 export function normalizeAuctionInput(input: string): {
   auctionId: string

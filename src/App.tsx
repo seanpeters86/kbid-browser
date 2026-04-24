@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { normalizeAuctionInput, refreshAuctionData } from './lib/kbid'
+import { browseAuctionList, normalizeAuctionInput, refreshAuctionData } from './lib/kbid'
 import {
   loadAuctionDecisions,
   loadSettings,
@@ -8,11 +8,15 @@ import {
   saveSettings,
   saveTrackedAuctions,
 } from './lib/storage'
-import type { SwipeDecision, TrackedAuction } from './types'
+import type { AuctionBrowseFilters, AuctionBrowseItem, SwipeDecision, TrackedAuction } from './types'
 
 type AppView = 'import' | 'swipe' | 'saved'
 
 const SWIPE_THRESHOLD = 60
+const DEFAULT_BROWSE_FILTERS: AuctionBrowseFilters = {
+  distanceRadius: '10',
+  distanceZip: '55014',
+}
 
 function App() {
   const [trackedAuctions, setTrackedAuctions] = useState<TrackedAuction[]>(() => loadTrackedAuctions())
@@ -25,6 +29,11 @@ function App() {
   const [activeView, setActiveView] = useState<AppView>('import')
   const [inputError, setInputError] = useState('')
   const [loadingAuctionId, setLoadingAuctionId] = useState<string | null>(null)
+  const [browseFilters, setBrowseFilters] = useState<AuctionBrowseFilters>(DEFAULT_BROWSE_FILTERS)
+  const [browseAuctions, setBrowseAuctions] = useState<AuctionBrowseItem[]>([])
+  const [browseSourceUrl, setBrowseSourceUrl] = useState('')
+  const [browseError, setBrowseError] = useState('')
+  const [isBrowsing, setIsBrowsing] = useState(false)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
   const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
@@ -117,26 +126,13 @@ function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [activeView, currentLot, selectedAuction, triggerDecision])
 
-  useEffect(() => {
-    if (!currentLot) {
-      setLoadedSwipeImageLotId(null)
-      return
-    }
-
-    if (!currentLot.imageUrl) {
-      setLoadedSwipeImageLotId(currentLot.id)
-      return
-    }
-
-    setLoadedSwipeImageLotId(null)
-  }, [currentLot])
   const isSwipeImageLoading = Boolean(currentLot?.imageUrl) && loadedSwipeImageLotId !== currentLot?.id
 
-  const addAuction = () => {
-    const normalized = normalizeAuctionInput(auctionInput)
+  const addAuctionByInput = (input: string, label?: string) => {
+    const normalized = normalizeAuctionInput(input)
     if (!normalized) {
       setInputError('Enter a valid K-BID auction URL or numeric auction ID.')
-      return
+      return false
     }
 
     const exists = trackedAuctions.find((entry) => entry.auctionId === normalized.auctionId)
@@ -144,13 +140,14 @@ function App() {
       setSelectedAuctionId(exists.id)
       setAuctionInput('')
       setInputError('')
-      return
+      return true
     }
 
     const nextAuction: TrackedAuction = {
       id: crypto.randomUUID(),
       auctionId: normalized.auctionId,
       auctionUrl: normalized.auctionUrl,
+      label,
       addedAt: new Date().toISOString(),
     }
 
@@ -161,6 +158,28 @@ function App() {
     setActiveView('import')
     setAuctionInput('')
     setInputError('')
+    return true
+  }
+
+  const addAuction = () => {
+    addAuctionByInput(auctionInput)
+  }
+
+  const browseAuctionsByFilters = async () => {
+    setIsBrowsing(true)
+    setBrowseError('')
+    try {
+      const response = await browseAuctionList(browseFilters, settings.proxyPrefix)
+      setBrowseAuctions(response.auctions)
+      setBrowseSourceUrl(response.url)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Browse failed'
+      const hint =
+        ' Try setting a proxy prefix to work around CORS. Use the AllOrigins or corsproxy.io preset in Settings, or clear the proxy and try again if one is already set.'
+      setBrowseError(`${message}.${hint}`)
+    } finally {
+      setIsBrowsing(false)
+    }
   }
 
   const removeAuction = (id: string) => {
@@ -330,11 +349,113 @@ function App() {
             </div>
             {inputError ? <p className="error-text">{inputError}</p> : null}
 
+            <div className="browse-panel">
+              <div className="browse-header">
+                <h3>Browse Existing Auctions</h3>
+                <p>Search K-BID auction list defaults with configurable radius and zip code.</p>
+              </div>
+              <div className="browse-controls">
+                <div className="browse-field">
+                  <label htmlFor="distance-radius">Distance Radius</label>
+                  <select
+                    id="distance-radius"
+                    value={browseFilters.distanceRadius}
+                    onChange={(event) => {
+                      const value = event.target.value as AuctionBrowseFilters['distanceRadius']
+                      setBrowseFilters((prev) => ({ ...prev, distanceRadius: value }))
+                    }}
+                  >
+                    <option value="10">10 miles</option>
+                    <option value="25">25 miles</option>
+                    <option value="50">50 miles</option>
+                  </select>
+                </div>
+
+                <div className="browse-field">
+                  <label htmlFor="distance-zip">Distance ZIP</label>
+                  <input
+                    id="distance-zip"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={browseFilters.distanceZip}
+                    onChange={(event) => {
+                      setBrowseFilters((prev) => ({ ...prev, distanceZip: event.target.value }))
+                    }}
+                  />
+                </div>
+
+                <button type="button" onClick={() => void browseAuctionsByFilters()} disabled={isBrowsing}>
+                  {isBrowsing ? 'Searching...' : 'Search Auctions'}
+                </button>
+              </div>
+
+              {browseSourceUrl ? (
+                <p className="browse-source">
+                  Source query:{' '}
+                  <a href={browseSourceUrl} target="_blank" rel="noreferrer">
+                    Open K-BID list page
+                  </a>
+                </p>
+              ) : null}
+              {browseError ? <p className="error-text">{browseError}</p> : null}
+
+              {browseAuctions.length ? (
+                <ul className="browse-results">
+                  {browseAuctions.map((auction) => {
+                    const existing = trackedAuctions.find((entry) => entry.auctionId === auction.auctionId)
+
+                    return (
+                      <li key={auction.auctionId} className="browse-card">
+                        <div>
+                          <strong title={auction.title}>{auction.abbreviatedTitle}</strong>
+                          <p>{auction.location ?? 'Location unavailable'}</p>
+                          <small>
+                            {auction.distanceAway ? `Distance: ${auction.distanceAway}` : 'Distance unavailable'}
+                            {' | '}
+                            {auction.closingDate ? `Closes: ${auction.closingDate}` : 'Closing date unavailable'}
+                          </small>
+                        </div>
+                        {auction.imageUrls.length ? (
+                          <div className="browse-images">
+                            {auction.imageUrls.map((imageUrl, index) => (
+                              <img
+                                key={`${auction.auctionId}-${imageUrl}`}
+                                src={imageUrl}
+                                alt={`${auction.abbreviatedTitle} preview ${index + 1}`}
+                                loading="lazy"
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="inline-actions">
+                          <a className="link-button" href={auction.auctionUrl} target="_blank" rel="noreferrer">
+                            Open Auction
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addAuctionByInput(auction.auctionUrl, auction.abbreviatedTitle)
+                            }}
+                          >
+                            {existing ? 'Select Tracked' : 'Import Auction'}
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : null}
+              {!browseAuctions.length && !isBrowsing && !browseError ? (
+                <p className="meta">Run Search Auctions to load auction cards with location, distance, close time, and sample images.</p>
+              ) : null}
+            </div>
+
             <ul className="auction-list">
               {trackedAuctions.map((auction) => (
                 <li key={auction.id} className={auction.id === selectedAuctionId ? 'selected' : ''}>
                   <div>
-                    <strong>{auction.data?.title || `Auction ${auction.auctionId}`}</strong>
+                    <strong>{auction.data?.title || auction.label || `Auction ${auction.auctionId}`}</strong>
                     <p>{auction.auctionUrl}</p>
                     <small>
                       {auction.data

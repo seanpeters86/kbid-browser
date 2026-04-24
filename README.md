@@ -4,6 +4,8 @@ Client-side helper app for browsing K-BID auctions faster.
 
 Current MVP features:
 - Track only auction URLs/IDs you care about.
+- Browse existing auctions from the K-BID list page, then import directly.
+- Auction browse filters for distance radius (10/25/50) and distance ZIP (default 55014).
 - Manual refresh per tracked auction.
 - Swipe-style lot review flow (right = save, left = ignore).
 - Keyboard arrows and touch swipe gestures for fast triage.

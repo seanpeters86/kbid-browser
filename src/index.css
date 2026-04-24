@@ -82,6 +82,16 @@ body {
   padding: 0.55rem 0.65rem;
 }
 
+.browse-controls select,
+.browse-controls input {
+  width: 100%;
+  background: #0d1621;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 0.55rem 0.65rem;
+}
+
 .settings-panel small {
   display: block;
   color: var(--muted);
@@ -199,6 +209,79 @@ button.danger {
   padding: 0;
   display: grid;
   gap: 0.65rem;
+}
+
+.browse-panel {
+  margin-top: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  padding: 0.75rem;
+  background: rgba(12, 21, 33, 0.55);
+}
+
+.browse-header p {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+
+.browse-controls {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.browse-field label {
+  font-size: 0.84rem;
+  color: var(--muted);
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.browse-source {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+}
+
+.browse-source a {
+  color: #8ec5ff;
+  font-weight: 700;
+}
+
+.browse-results {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.browse-card {
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.7rem;
+  background: rgba(13, 22, 33, 0.8);
+}
+
+.browse-card p,
+.browse-card small {
+  margin: 0.25rem 0;
+  color: var(--muted);
+}
+
+.browse-images {
+  margin-top: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.browse-images img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 0.45rem;
+  border: 1px solid var(--line);
 }
 
 .auction-list li {
@@ -461,6 +544,15 @@ button.danger {
 
   .add-auction-row {
     grid-template-columns: 1fr auto;
+  }
+
+  .browse-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .browse-controls button {
+    margin-left: 0.25rem;
   }
 
   .saved-grid {

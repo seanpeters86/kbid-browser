@@ -38,6 +38,24 @@ export interface AppSettings {
   proxyPrefix: string
 }
 
+export type AuctionBrowseDistanceRadius = '10' | '25' | '50'
+
+export interface AuctionBrowseFilters {
+  distanceRadius: AuctionBrowseDistanceRadius
+  distanceZip: string
+}
+
+export interface AuctionBrowseItem {
+  auctionId: string
+  auctionUrl: string
+  title: string
+  abbreviatedTitle: string
+  location?: string
+  distanceAway?: string
+  closingDate?: string
+  imageUrls: string[]
+}
+
 export type SwipeDecision = 'saved' | 'ignored'
 
 export type AuctionDecisionStore = Record<string, Record<string, SwipeDecision>>
