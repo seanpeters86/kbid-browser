@@ -791,7 +791,7 @@ function App() {
                       <p className="pricing">{formatBidSummary(lot.currentBid, lot.nextBid)}</p>
                     </div>
                     <div className="inline-actions">
-                      <a className="link-button" href={lot.itemUrl} target="_blank" rel="noreferrer">
+                      <a className="link-button open-to-bid-button" href={lot.itemUrl} target="_blank" rel="noreferrer">
                         Open To Bid
                       </a>
                       <button type="button" className="danger" onClick={() => triggerFavoriteUndo(selectedAuction?.auctionId, lot.id, setAuctionDecisions)}>
