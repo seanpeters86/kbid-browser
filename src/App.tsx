@@ -716,10 +716,10 @@ function App() {
 
                 <div className="history-row">
                   <button type="button" onClick={() => moveLotFocus(-1)} disabled={!canGoBack}>
-                    Back Lot
+                    Back
                   </button>
                   <button type="button" onClick={() => moveLotFocus(1)} disabled={!canGoForward}>
-                    Forward Lot
+                    Forward
                   </button>
                 </div>
 
