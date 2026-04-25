@@ -60,7 +60,7 @@ export function loadAuctionDecisions(): AuctionDecisionStore {
     }
 
     const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object') {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {}
     }
 

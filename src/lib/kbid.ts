@@ -64,6 +64,14 @@ function parseAuctionDistance(contextText: string): string | undefined {
   return shortMatch?.[1]?.trim()
 }
 
+function cleanAuctionMetadataValue(value: string | undefined, label: 'Location' | 'Distance'): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  return value.replace(new RegExp(`^${label}\\s*:\\s*`, 'i'), '').trim()
+}
+
 function parseAuctionClosing(contextText: string): string | undefined {
   const explicitMatch = contextText.match(/(?:Begins\s*Closing|Closing|Closes|Ends?)\s*:?[\s]+(.*?)(?=\s{2,}|\s+(?:Distance|Location)\b|$)/i)
   if (explicitMatch?.[1]) {
@@ -130,8 +138,8 @@ function parseAuctionListFromHtml(html: string): AuctionBrowseItem[] {
       auctionUrl,
       title,
       abbreviatedTitle: abbreviateAuctionTitle(title),
-      location: locationText || parseAuctionLocation(contextText),
-      distanceAway: distanceText || parseAuctionDistance(contextText),
+      location: cleanAuctionMetadataValue(locationText, 'Location') || parseAuctionLocation(contextText),
+      distanceAway: cleanAuctionMetadataValue(distanceText, 'Distance') || parseAuctionDistance(contextText),
       closingDate: [closingLabel, closingDate].filter(Boolean).join(' ') || parseAuctionClosing(contextText),
       imageUrls: Array.from(new Set(imageUrls)),
     }

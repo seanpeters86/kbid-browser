@@ -48,6 +48,14 @@ Current MVP features:
 
   npm run lint
 
+- Run tests:
+
+  npm run test
+
+- Run tests in watch mode:
+
+  npm run test:watch
+
 ## GitHub Pages Deployment
 
 This repository includes a workflow that publishes static assets to GitHub Pages.
