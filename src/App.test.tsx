@@ -91,4 +91,64 @@ describe('App', () => {
       )
     })
   })
+
+  it('opens favorites from deck complete empty state', async () => {
+    const user = userEvent.setup()
+
+    mockNormalizeAuctionInput.mockReturnValue({
+      auctionId: '12345',
+      auctionUrl: 'https://www.k-bid.com/auction/12345',
+    })
+
+    render(<App />)
+
+    await user.type(screen.getByPlaceholderText('Paste K-BID auction URL or ID'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Add Auction' }))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Lot')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+
+    expect(await screen.findByRole('button', { name: 'Go to Favorites' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Go to Favorites' }))
+
+    expect(screen.getByRole('heading', { name: 'Favorites' })).toBeInTheDocument()
+    expect(screen.getByText('No favorites yet')).toBeInTheDocument()
+  })
+
+  it('allows history navigation from deck complete state', async () => {
+    const user = userEvent.setup()
+
+    mockNormalizeAuctionInput.mockReturnValue({
+      auctionId: '12345',
+      auctionUrl: 'https://www.k-bid.com/auction/12345',
+    })
+
+    render(<App />)
+
+    await user.type(screen.getByPlaceholderText('Paste K-BID auction URL or ID'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Add Auction' }))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Lot')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+
+    expect(await screen.findByText('Deck complete')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByText('Test Lot')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+    expect(await screen.findByText('Deck complete')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Forward' }))
+    expect(screen.getByText('Test Lot')).toBeInTheDocument()
+  })
 })

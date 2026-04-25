@@ -99,8 +99,9 @@ function App() {
     return allLots.findIndex((lot) => lot.id === currentLot.id)
   }, [allLots, currentLot])
 
-  const canGoBack = currentLotIndex > 0
-  const canGoForward = currentLotIndex >= 0 && currentLotIndex < allLots.length - 1
+  const isDeckComplete = !currentLot && allLots.length > 0
+  const canGoBack = currentLotIndex > 0 || isDeckComplete
+  const canGoForward = (currentLotIndex >= 0 && currentLotIndex < allLots.length - 1) || isDeckComplete
   const currentLotDecision = currentLot && selectedAuction ? selectedAuctionDecisions[currentLot.id] : undefined
 
   const reviewedCount = allLots.length - undecidedLots.length
@@ -134,7 +135,16 @@ function App() {
   }, [allLots, currentLot, selectedAuction])
 
   const moveLotFocus = useCallback((delta: number) => {
+    if (!allLots.length) {
+      return
+    }
+
     if (!currentLot) {
+      if (delta < 0) {
+        setFocusedLotId(allLots[allLots.length - 1].id)
+      } else if (delta > 0) {
+        setFocusedLotId(allLots[0].id)
+      }
       return
     }
 
@@ -702,6 +712,9 @@ function App() {
                   <div className="empty-state compact">
                     <h3>Deck complete</h3>
                     <p>You reviewed every parsed lot. Open Favorites to decide what to bid on.</p>
+                    <button type="button" onClick={() => setActiveView('saved')}>
+                      Go to Favorites
+                    </button>
                   </div>
                 )}
 
