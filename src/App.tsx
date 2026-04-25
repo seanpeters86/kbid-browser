@@ -645,6 +645,32 @@ function App() {
                             {formatMoney(currentLot.nextBid)}
                           </div>
                         ) : null}
+                        {(() => {
+                          const timeShort = formatTimeShort(currentLot.timeRemaining)
+                          if (timeShort) {
+                            return (
+                              <div
+                                className="time-chip-overlay"
+                                aria-label={`Time remaining: ${currentLot.timeRemaining}`}
+                                title={`Time remaining: ${currentLot.timeRemaining}`}
+                              >
+                                {timeShort}
+                              </div>
+                            )
+                          }
+                          if (currentLot.beginsClosing) {
+                            return (
+                              <div
+                                className="time-chip-overlay"
+                                aria-label={`Begins closing: ${currentLot.beginsClosing}`}
+                                title={`Begins closing: ${currentLot.beginsClosing}`}
+                              >
+                                {currentLot.beginsClosing}
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
                       {currentLot.imageUrl ? (
                         <>
                           <img
@@ -670,7 +696,6 @@ function App() {
                     </div>
                     <div className="swipe-content">
                       <h3>{currentLot.title}</h3>
-                      <p className="meta">{formatLotMeta(currentLot.timeRemaining, currentLot.beginsClosing)}</p>
                     </div>
                   </article>
                 ) : (
@@ -727,16 +752,43 @@ function App() {
               <div className="saved-grid">
                 {savedLots.map((lot) => (
                   <article key={lot.id} className="saved-card">
-                    {lot.imageUrl ? (
-                      <img src={lot.imageUrl} alt={lot.title} className="saved-image" />
-                    ) : (
-                      <div className="image-placeholder small">No image</div>
-                    )}
+                    <div className="saved-image-wrap">
+                      {lot.imageUrl ? (
+                        <img src={lot.imageUrl} alt={lot.title} className="saved-image" />
+                      ) : (
+                        <div className="image-placeholder small">No image</div>
+                      )}
+                     {(() => {
+                        const timeShort = formatTimeShort(lot.timeRemaining)
+                        if (timeShort) {
+                          return (
+                            <div
+                              className="time-chip-overlay"
+                              aria-label={`Time remaining: ${lot.timeRemaining}`}
+                              title={`Time remaining: ${lot.timeRemaining}`}
+                            >
+                              {timeShort}
+                            </div>
+                          )
+                        }
+                        if (lot.beginsClosing) {
+                          return (
+                            <div
+                              className="time-chip-overlay"
+                              aria-label={`Begins closing: ${lot.beginsClosing}`}
+                              title={`Begins closing: ${lot.beginsClosing}`}
+                            >
+                              {lot.beginsClosing}
+                            </div>
+                          )
+                        }
+                        return null
+                      })()}
+                    </div>
                     <div>
                       <div className="lot-chip">Lot {lot.lotNumber}</div>
                       <h3>{lot.title}</h3>
                       <p className="pricing">{formatBidSummary(lot.currentBid, lot.nextBid)}</p>
-                      <p className="meta">{formatLotMeta(lot.timeRemaining, lot.beginsClosing)}</p>
                     </div>
                     <div className="inline-actions">
                       <a className="link-button" href={lot.itemUrl} target="_blank" rel="noreferrer">
@@ -816,16 +868,22 @@ function formatBidSummary(currentBid: number | undefined, nextBid: number | unde
   return `Current: ${formatMoney(currentBid)} | Next: ${formatMoney(nextBid)}`
 }
 
-function formatLotMeta(timeRemaining: string | undefined, beginsClosing: string | undefined): string {
-  if (timeRemaining) {
-    return `Time remaining: ${timeRemaining}`
-  }
+function formatTimeShort(timeRemaining: string | undefined): string | null {
+  if (!timeRemaining) return null
 
-  if (beginsClosing) {
-    return `Begins closing: ${beginsClosing}`
-  }
+  const daysMatch = timeRemaining.match(/(\d+)\s*d/i)
+  const hoursMatch = timeRemaining.match(/(\d+)\s*h/i)
+  const minutesMatch = timeRemaining.match(/(\d+)\s*m/i)
 
-  return 'Timing not available'
+  const d = daysMatch ? Number.parseInt(daysMatch[1], 10) : 0
+  const h = hoursMatch ? Number.parseInt(hoursMatch[1], 10) : 0
+  const m = minutesMatch ? Number.parseInt(minutesMatch[1], 10) : 0
+
+  if (d > 0) return `${d}d`
+  if (h > 0) return `${h}h`
+  if (m > 0) return `${m}m`
+
+  return null
 }
 
 function formatDecisionLabel(decision: SwipeDecision | undefined): string {
