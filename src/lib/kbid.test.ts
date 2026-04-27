@@ -79,6 +79,8 @@ describe('refreshAuctionData', () => {
     const firstPageHtml = `
       <h1>Warehouse Liquidation</h1>
       <div>Showing 1 to 50 of 60 items</div>
+      <div>Auction Location: 2393 Coon Rapids Blvd., Coon Rapids, MN 55433</div>
+      <div>Phone: 763-913-7078</div>
       <div class="row">
         <a href="/auction/123/item/1">Cordless Drill</a>
         <a href="/auction/123/item/1"><img src="/images/M_1001.jpg" /></a>
@@ -110,6 +112,7 @@ describe('refreshAuctionData', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.title).toBe('Warehouse Liquidation')
+    expect(result.location).toBe('2393 Coon Rapids Blvd., Coon Rapids, MN 55433')
     expect(result.pageCount).toBe(2)
     expect(result.lots).toHaveLength(2)
     expect(result.lots[0]).toMatchObject({
@@ -131,5 +134,112 @@ describe('refreshAuctionData', () => {
       imageUrl: 'https://www.k-bid.com/images/2051.jpg',
     })
     expect(result.warnings).toEqual([])
+  })
+
+  it('normalizes malformed begins closing values without a space before the time', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+        <div>Begins Closing: Tomorrow08:32 pm CDT Current Bid: $10.00</div>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.lots[0]?.beginsClosing).toBe('Tomorrow 08:32 pm CDT')
+  })
+
+  it('parses removal data from single-line metadata text', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <div>Removal: Wed, Apr 29, 202611:00 am - 05:00 pm Payment: Credit Card only</div>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.removalDate).toBe('Wed, Apr 29, 2026 11:00 am - 05:00 pm')
+  })
+
+  it('parses removal data when label and value are sibling elements', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <div class="meta-row"><strong>Removal:</strong><span>Thu, Apr 30, 2026 01:00 pm - 06:00 pm</span></div>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.removalDate).toBe('Thu, Apr 30, 2026 01:00 pm - 06:00 pm')
+  })
+
+  it('parses removal section text with trailing appointment sentence', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <h4>Inspection By Appointment Only -</h4>
+      <h4>Auction Closing:</h4>
+      <p>Mon, Apr 27, 2026 08:30 pm</p>
+      <h4>Removal:</h4>
+      <p>Wed, Apr 29, 2026 11:00 am - 05:00 pmRemovals are by appointment within the schedule above.</p>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.removalDate).toBe('Wed, Apr 29, 2026 11:00 am - 05:00 pm')
+  })
+
+  it('does not set removal date when only prose follows the removal tab label', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <div>Details Terms Directions Shipping Payment Info Removal As the owner of an antique store I accumulate stuff faster than I can sell it.</div>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.removalDate).toBeUndefined()
+  })
+
+  it('parses removal range when weekday is omitted', async () => {
+    const html = `
+      <h1>Warehouse Liquidation</h1>
+      <div>Showing 1 to 1 of 1 items</div>
+      <h4>Removal:</h4>
+      <p>Apr 29, 2026 11:00 am - 05:00 pm</p>
+      <div class="row">
+        <a href="/auction/123/item/1">Cordless Drill</a>
+      </div>
+    `
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okHtmlResponse(html))
+
+    const result = await refreshAuctionData('123', 'https://www.k-bid.com/auction/123', '')
+
+    expect(result.removalDate).toBe('Apr 29, 2026 11:00 am - 05:00 pm')
   })
 })

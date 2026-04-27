@@ -17,6 +17,7 @@ const parsedAuctionData: AuctionData = {
   auctionId: '12345',
   auctionUrl: 'https://www.k-bid.com/auction/12345',
   title: 'Test Auction',
+  location: '2393 Coon Rapids Blvd., Coon Rapids, MN 55433',
   pageCount: 1,
   lots: [
     {
@@ -26,6 +27,7 @@ const parsedAuctionData: AuctionData = {
       itemUrl: 'https://www.k-bid.com/auction/12345/item/1',
     },
   ],
+  removalDate: 'Wed, Apr 29, 2026 11:00 am - 05:00 pm',
   warnings: [],
   fetchedAt: '2026-04-24T00:00:00.000Z',
 }
@@ -76,6 +78,42 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: '2. Swipe' })).toBeEnabled()
     expect(screen.getByText('Test Auction')).toBeInTheDocument()
+  })
+
+  it('shows labeled location and removal time on the swipe page', async () => {
+    const user = userEvent.setup()
+
+    mockNormalizeAuctionInput.mockReturnValue({
+      auctionId: '12345',
+      auctionUrl: 'https://www.k-bid.com/auction/12345',
+    })
+
+    render(<App />)
+
+    await user.type(screen.getByPlaceholderText('Paste K-BID auction URL or ID'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Add Auction' }))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(await screen.findByText(/Location: 2393 Coon Rapids Blvd., Coon Rapids, MN 55433/i)).toBeInTheDocument()
+    expect(screen.getByText(/Removal Time: Wed, Apr 29, 2026 11:00 am - 05:00 pm/i)).toBeInTheDocument()
+  })
+
+  it('renders an icon-only lot listing link on the swipe page', async () => {
+    const user = userEvent.setup()
+
+    mockNormalizeAuctionInput.mockReturnValue({
+      auctionId: '12345',
+      auctionUrl: 'https://www.k-bid.com/auction/12345',
+    })
+
+    render(<App />)
+
+    await user.type(screen.getByPlaceholderText('Paste K-BID auction URL or ID'), '12345')
+    await user.click(screen.getByRole('button', { name: 'Add Auction' }))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    const lotLink = await screen.findByRole('link', { name: 'Open lot listing' })
+    expect(lotLink).toHaveAttribute('href', 'https://www.k-bid.com/auction/12345/item/1')
   })
 
   it('runs auction browse with default filters', async () => {

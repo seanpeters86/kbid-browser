@@ -19,6 +19,8 @@ export interface AuctionData {
   totalLots?: number
   pageCount: number
   lots: Lot[]
+  location?: string
+  removalDate?: string
   warnings: string[]
   fetchedAt: string
 }

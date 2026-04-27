@@ -21,6 +21,35 @@ const DEFAULT_BROWSE_FILTERS: AuctionBrowseFilters = {
   distanceZip: '55014',
 }
 
+function formatRemovalDateRange(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  const match = normalized.match(
+    /(((?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,\s*)?[A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4})\s*\d{1,2}:\d{2}\s*[AP]M\s*(?:-|to)\s*\d{1,2}:\d{2}\s*[AP]M)/i,
+  )
+
+  if (!match?.[1]) {
+    return undefined
+  }
+
+  return match[1].replace(/(\d{4})(\d{1,2}:\d{2}\s*[AP]M\b)/i, '$1 $2')
+}
+
+function formatAuctionLocation(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  return value
+    .replace(/^Auction\s+Location\s*:\s*/i, '')
+    .replace(/^Location\s*:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function App() {
   const [trackedAuctions, setTrackedAuctions] = useState<TrackedAuction[]>(() => loadTrackedAuctions())
   const [auctionDecisions, setAuctionDecisions] = useState(() => loadAuctionDecisions())
@@ -37,6 +66,7 @@ function App() {
   const [browseSourceUrl, setBrowseSourceUrl] = useState('')
   const [browseError, setBrowseError] = useState('')
   const [isBrowsing, setIsBrowsing] = useState(false)
+  const [importingAuctionId, setImportingAuctionId] = useState<string | null>(null)
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [swipeCue, setSwipeCue] = useState<'left' | 'right' | null>(null)
   const [loadedSwipeImageLotId, setLoadedSwipeImageLotId] = useState<string | null>(null)
@@ -276,6 +306,62 @@ function App() {
 
   const addAuction = () => {
     addAuctionByInput(auctionInput)
+  }
+
+  const importAndSwipeAuction = async (auctionUrl: string, label?: string) => {
+    const normalized = normalizeAuctionInput(auctionUrl)
+    if (!normalized) return
+
+    setImportingAuctionId(normalized.auctionId)
+
+    let entry = trackedAuctions.find((e) => e.auctionId === normalized.auctionId)
+    let currentList = trackedAuctions
+
+    if (!entry) {
+      entry = {
+        id: crypto.randomUUID(),
+        auctionId: normalized.auctionId,
+        auctionUrl: normalized.auctionUrl,
+        label,
+        addedAt: new Date().toISOString(),
+      }
+      currentList = [entry, ...trackedAuctions]
+      setTrackedAuctions(currentList)
+      saveTrackedAuctions(currentList)
+    }
+
+    const targetId = entry.id
+    selectAuction(targetId)
+
+    if (entry.data) {
+      setActiveView('swipe')
+      setImportingAuctionId(null)
+      return
+    }
+
+    setLoadingAuctionId(targetId)
+
+    try {
+      const data = await refreshAuctionData(entry.auctionId, entry.auctionUrl, settings.proxyPrefix)
+      const nextAuctions = currentList.map((a) =>
+        a.id === targetId ? { ...a, data, lastRefreshAt: new Date().toISOString(), lastError: undefined } : a,
+      )
+      setTrackedAuctions(nextAuctions)
+      saveTrackedAuctions(nextAuctions)
+      setActiveView('swipe')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Refresh failed'
+      const hint =
+        ' Try setting a proxy prefix to work around CORS. Use the AllOrigins or corsproxy.io preset in Settings, or clear the proxy and try again if one is already set.'
+      const nextAuctions = currentList.map((a) =>
+        a.id === targetId ? { ...a, lastError: `${message}.${hint}` } : a,
+      )
+      setTrackedAuctions(nextAuctions)
+      saveTrackedAuctions(nextAuctions)
+    } finally {
+      setLoadingAuctionId(null)
+      setImportingAuctionId(null)
+    }
   }
 
   const browseAuctionsByFilters = async () => {
@@ -534,7 +620,21 @@ function App() {
 
                     return (
                       <li key={auction.auctionId} className="browse-card">
-                        <div>
+                        <a
+                          className="browse-open-link"
+                          href={auction.auctionUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label="Open on K-BID"
+                          title="Open on K-BID"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                          </svg>
+                        </a>
+                        <div className="browse-card-info">
                           <strong title={auction.title}>{auction.abbreviatedTitle}</strong>
                           <p>{auction.location ?? 'Location unavailable'}</p>
                           <small>
@@ -556,16 +656,17 @@ function App() {
                           </div>
                         ) : null}
                         <div className="inline-actions">
-                          <a className="link-button" href={auction.auctionUrl} target="_blank" rel="noreferrer">
-                            Open Auction
-                          </a>
                           <button
                             type="button"
-                            onClick={() => {
-                              addAuctionByInput(auction.auctionUrl, auction.abbreviatedTitle)
-                            }}
+                            className="browse-swipe-btn"
+                            disabled={importingAuctionId !== null}
+                            onClick={() => void importAndSwipeAuction(auction.auctionUrl, auction.abbreviatedTitle)}
                           >
-                            {existing ? 'Select Tracked' : 'Import Auction'}
+                            {importingAuctionId === auction.auctionId
+                              ? 'Loading…'
+                              : existing
+                                ? 'Swipe →'
+                                : 'Import & Swipe →'}
                           </button>
                         </div>
                       </li>
@@ -579,43 +680,50 @@ function App() {
             </div>
 
             <ul className="auction-list">
-              {trackedAuctions.map((auction) => (
-                <li key={auction.id} className={auction.id === selectedAuctionId ? 'selected' : ''}>
-                  <div>
-                    <strong>{auction.data?.title || auction.label || `Auction ${auction.auctionId}`}</strong>
-                    <p>{auction.auctionUrl}</p>
-                    <small>
-                      {auction.data
-                        ? `${auction.data.lots.length} parsed, ${
-                            auctionDecisions[auction.auctionId]
-                              ? Object.keys(auctionDecisions[auction.auctionId]).length
-                              : 0
-                          } reviewed`
-                        : 'No data yet'}
-                    </small>
-                  </div>
-                  <div className="inline-actions">
-                    <button type="button" onClick={() => selectAuction(auction.id)}>
-                      Select
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void refreshAuction(auction.id)}
-                      disabled={loadingAuctionId === auction.id}
-                    >
-                      {loadingAuctionId === auction.id ? 'Refreshing...' : 'Refresh'}
-                    </button>
-                    <button type="button" className="danger" onClick={() => removeAuction(auction.id)}>
-                      Remove
-                    </button>
-                    {auction.id === selectedAuctionId ? (
-                      <button type="button" onClick={() => resetAuctionReview(auction.auctionId)}>
-                        Reset Decisions
+              {trackedAuctions.map((auction) => {
+                const removalDate = formatRemovalDateRange(auction.data?.removalDate)
+
+                return (
+                  <li key={auction.id} className={auction.id === selectedAuctionId ? 'selected' : ''}>
+                    <div>
+                      <strong>{auction.data?.title || auction.label || `Auction ${auction.auctionId}`}</strong>
+                      <p>{auction.auctionUrl}</p>
+                      <small>
+                        {auction.data
+                          ? `${auction.data.lots.length} parsed, ${
+                              auctionDecisions[auction.auctionId]
+                                ? Object.keys(auctionDecisions[auction.auctionId]).length
+                                : 0
+                            } reviewed`
+                          : 'No data yet'}
+                      </small>
+                      {removalDate ? (
+                        <small className="auction-removal-time">Removal Time: {removalDate}</small>
+                      ) : null}
+                    </div>
+                    <div className="inline-actions">
+                      <button type="button" onClick={() => selectAuction(auction.id)}>
+                        Select
                       </button>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+                      <button
+                        type="button"
+                        onClick={() => void refreshAuction(auction.id)}
+                        disabled={loadingAuctionId === auction.id}
+                      >
+                        {loadingAuctionId === auction.id ? 'Refreshing...' : 'Refresh'}
+                      </button>
+                      <button type="button" className="danger" onClick={() => removeAuction(auction.id)}>
+                        Remove
+                      </button>
+                      {auction.id === selectedAuctionId ? (
+                        <button type="button" onClick={() => resetAuctionReview(auction.auctionId)}>
+                          Reset Decisions
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
 
             {selectedAuction?.lastError ? <p className="error-text">{selectedAuction.lastError}</p> : null}
@@ -639,8 +747,17 @@ function App() {
                 <div className="swipe-header">
                   <div>
                     <h2 className="swipe-auction-title">{selectedAuction.data.title}</h2>
-                    <p>
-                      Reviewed {reviewedCount}/{allLots.length} ({progressPct}%)
+                    <p className="swipe-auction-meta">
+                      {[
+                        formatAuctionLocation(selectedAuction.data.location)
+                          ? `Location: ${formatAuctionLocation(selectedAuction.data.location)}`
+                          : undefined,
+                        formatRemovalDateRange(selectedAuction.data.removalDate)
+                          ? `Removal Time: ${formatRemovalDateRange(selectedAuction.data.removalDate)}`
+                          : undefined,
+                      ]
+                        .filter((part): part is string => Boolean(part))
+                        .join(' • ') || 'Location and removal time unavailable'}
                     </p>
                   </div>
                   <div className="swipe-stats">
@@ -733,10 +850,23 @@ function App() {
                       </div>
                     </div>
                     <div className="swipe-content">
-                      <h3>{currentLot.title}</h3>
-                      <a href={currentLot.itemUrl} target="_blank" rel="noreferrer">
-                        Open Lot Listing
-                      </a>
+                      <div className="swipe-lot-header">
+                        <h3>{currentLot.title}</h3>
+                        <a
+                          className="swipe-open-link"
+                          href={currentLot.itemUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label="Open lot listing"
+                          title="Open lot listing"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                          </svg>
+                        </a>
+                      </div>
                     </div>
                   </article>
                 ) : (

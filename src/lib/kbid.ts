@@ -45,7 +45,9 @@ function buildAuctionListUrl(filters: AuctionBrowseFilters): string {
 }
 
 function parseAuctionLocation(contextText: string): string | undefined {
-  const explicitMatch = contextText.match(/Location:\s*(.*?)(?=\s+(?:Distance|Begins\s*Closing|Closing|Closes|Ends)\b|$)/i)
+  const explicitMatch = contextText.match(
+    /Location:\s*(.*?)(?=\s+(?:Distance|Phone|Lot\s*Categories?|Begins\s*Closing|Closing|Closes|Ends|Auction\s*Details|Payment|Removal)\b|$)/i,
+  )
   if (explicitMatch?.[1]) {
     return explicitMatch[1].trim()
   }
@@ -252,6 +254,17 @@ function parseMoney(input: string | undefined): number | undefined {
   return Number.isFinite(value) ? value : undefined
 }
 
+function normalizeClosingText(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined
+  }
+
+  return value
+    .replace(/(\d{4})(\d{1,2}:\d{2}\s*[AP]M\b)/i, '$1 $2')
+    .replace(/([A-Za-z])(\d{1,2}:\d{2}\s*[AP]M\b)/i, '$1 $2')
+    .trim()
+}
+
 function extractTextFromNode(node: Element | null): string {
   if (!node) {
     return ''
@@ -346,7 +359,7 @@ function parseLotFromContext(itemUrl: string, lotNumber: number, contextText: st
     currentBid: parseMoney(currentBidMatch?.[1]),
     nextBid: parseMoney(nextBidMatch?.[1]),
     highBidder: highBidderMatch?.[1]?.trim(),
-    beginsClosing: beginsClosingMatch?.[1]?.trim(),
+    beginsClosing: normalizeClosingText(beginsClosingMatch?.[1]?.trim()),
     timeRemaining: timeRemainingMatch?.[1]?.trim(),
   }
 }
@@ -458,6 +471,12 @@ function parseAuctionTitle(html: string): string {
   return extractTextFromNode(heading) || 'K-BID Auction'
 }
 
+function parseAuctionLocationFromHtml(html: string): string | undefined {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const bodyText = extractTextFromNode(doc.body)
+  return parseAuctionLocation(bodyText)
+}
+
 function parseTotalLots(html: string): number | undefined {
   const text = html.replace(/\s+/g, ' ')
   const match = text.match(/Showing\s+\d+\s+to\s+\d+\s+of\s+(\d+)\s+items/i)
@@ -467,6 +486,62 @@ function parseTotalLots(html: string): number | undefined {
 
   const value = Number.parseInt(match[1], 10)
   return Number.isFinite(value) ? value : undefined
+}
+
+function parseAuctionRemoval(html: string): string | undefined {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+
+  const removalDatePattern =
+    /(((?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,\s*)?[A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4})\s*\d{1,2}:\d{2}\s*[AP]M\s*(?:-|to)\s*\d{1,2}:\d{2}\s*[AP]M)/i
+
+  const extractRemovalDateRange = (text: string): string | undefined => {
+    const normalized = text.replace(/\s+/g, ' ').trim()
+    if (!normalized) {
+      return undefined
+    }
+
+    const match = normalized.match(removalDatePattern)
+    return normalizeClosingText(match?.[1])
+  }
+
+  const extractDateFromText = (text: string): string | undefined => {
+    const normalized = text.replace(/\s+/g, ' ').trim()
+    if (!normalized) {
+      return undefined
+    }
+
+    const scopedMatch = normalized.match(/Removal\s*:?\s*([\s\S]{0,260})/i)
+    const scopedText = scopedMatch?.[1] ?? normalized
+    return extractRemovalDateRange(scopedText) ?? extractRemovalDateRange(normalized)
+  }
+
+  const labelNodes = Array.from(doc.querySelectorAll('h1, h2, h3, h4, h5, h6, dt, th, strong, b'))
+  for (const node of labelNodes) {
+    const label = extractTextFromNode(node)
+    if (!/^Removal\s*:?$/i.test(label)) {
+      continue
+    }
+
+    const ownText = extractDateFromText(extractTextFromNode(node.parentElement))
+    if (ownText) {
+      return ownText
+    }
+
+    let sibling: Element | null = node.nextElementSibling
+    let checked = 0
+    while (sibling && checked < 3) {
+      const candidate = extractDateFromText(extractTextFromNode(sibling))
+      if (candidate) {
+        return candidate
+      }
+
+      sibling = sibling.nextElementSibling
+      checked += 1
+    }
+  }
+
+  const bodyText = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim()
+  return bodyText ? extractDateFromText(bodyText) : undefined
 }
 
 async function fetchText(url: string): Promise<string> {
@@ -557,6 +632,8 @@ export async function refreshAuctionData(
   const totalLots = parseTotalLots(firstPageHtml)
   const pageCount = Math.max(1, Math.ceil((totalLots ?? 50) / 50))
   const auctionTitle = parseAuctionTitle(firstPageHtml)
+  const location = parseAuctionLocationFromHtml(firstPageHtml)
+  const removalDate = parseAuctionRemoval(firstPageHtml)
 
   const allLots = new Map<string, Lot>()
   const firstPageLots = parseLotsFromHtml(firstPageHtml)
@@ -594,6 +671,8 @@ export async function refreshAuctionData(
     totalLots,
     pageCount,
     lots: parsedLots,
+    location,
+    removalDate,
     warnings,
     fetchedAt: new Date().toISOString(),
   }
