@@ -50,6 +50,21 @@ function formatAuctionLocation(value: string | undefined): string | undefined {
     .trim()
 }
 
+function formatCityFromLocation(value: string | undefined): string | undefined {
+  const full = formatAuctionLocation(value)
+  if (!full) {
+    return undefined
+  }
+
+  const parts = full.split(',').map((p) => p.trim()).filter(Boolean)
+  if (parts.length <= 1) {
+    return parts[0]
+  }
+
+  // If the first part starts with a digit it's a street address; city is the next part
+  return /^\d/.test(parts[0]) ? parts[1] : parts[0]
+}
+
 function App() {
   const [trackedAuctions, setTrackedAuctions] = useState<TrackedAuction[]>(() => loadTrackedAuctions())
   const [auctionDecisions, setAuctionDecisions] = useState(() => loadAuctionDecisions())
@@ -636,7 +651,7 @@ function App() {
                         </a>
                         <div className="browse-card-info">
                           <strong title={auction.title}>{auction.abbreviatedTitle}</strong>
-                          <p>{auction.location ?? 'Location unavailable'}</p>
+                          <p>{formatCityFromLocation(auction.location) ?? 'Location unavailable'}</p>
                           <small>
                             {auction.distanceAway ? `Distance: ${auction.distanceAway}` : 'Distance unavailable'}
                             {' | '}
@@ -745,12 +760,12 @@ function App() {
             {selectedAuction?.data ? (
               <>
                 <div className="swipe-header">
-                  <div>
+                  <div className="swipe-header-info">
                     <h2 className="swipe-auction-title">{selectedAuction.data.title}</h2>
                     <p className="swipe-auction-meta">
                       {[
-                        formatAuctionLocation(selectedAuction.data.location)
-                          ? `Location: ${formatAuctionLocation(selectedAuction.data.location)}`
+                        formatCityFromLocation(selectedAuction.data.location)
+                          ? `Location: ${formatCityFromLocation(selectedAuction.data.location)}`
                           : undefined,
                         formatRemovalDateRange(selectedAuction.data.removalDate)
                           ? `Removal Time: ${formatRemovalDateRange(selectedAuction.data.removalDate)}`

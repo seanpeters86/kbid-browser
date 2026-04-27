@@ -398,8 +398,19 @@ button.danger {
 
 .browse-card p,
 .browse-card small {
+  display: block;
   margin: 0.25rem 0;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browse-card-info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .browse-images {
@@ -433,6 +444,15 @@ button.danger {
 .meta {
   margin: 0.25rem 0;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.auction-list li > div > strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .auction-removal-time {
@@ -451,21 +471,21 @@ button.danger {
   color: var(--muted);
 }
 
+.swipe-header-info {
+  min-width: 0;
+}
+
 .swipe-auction-title {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
-  max-width: 46ch;
 }
 
 .swipe-auction-meta {
   margin: 0.3rem 0 0;
   color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 46ch;
+  overflow-wrap: break-word;
 }
 
 .swipe-stats {

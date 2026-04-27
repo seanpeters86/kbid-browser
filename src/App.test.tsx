@@ -94,7 +94,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Add Auction' }))
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
 
-    expect(await screen.findByText(/Location: 2393 Coon Rapids Blvd., Coon Rapids, MN 55433/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Location: Coon Rapids/i)).toBeInTheDocument()
     expect(screen.getByText(/Removal Time: Wed, Apr 29, 2026 11:00 am - 05:00 pm/i)).toBeInTheDocument()
   })
 
