@@ -101,65 +101,92 @@ function App() {
 
   const isDeckComplete = !currentLot && allLots.length > 0
   const canGoBack = currentLotIndex > 0 || isDeckComplete
-  const canGoForward = (currentLotIndex >= 0 && currentLotIndex < allLots.length - 1) || isDeckComplete
+  const canGoForward = currentLotIndex >= 0 || isDeckComplete
   const currentLotDecision = currentLot && selectedAuction ? selectedAuctionDecisions[currentLot.id] : undefined
 
   const reviewedCount = allLots.length - undecidedLots.length
   const progressPct = allLots.length ? Math.round((reviewedCount / allLots.length) * 100) : 0
 
-  const triggerDecision = useCallback((decision: SwipeDecision, cue: 'left' | 'right') => {
-    if (!selectedAuction || !currentLot) {
+  const setLotDecision = useCallback((lotId: string, decision: SwipeDecision | undefined) => {
+    if (!selectedAuction) {
       return
     }
 
-    const currentIndex = allLots.findIndex((lot) => lot.id === currentLot.id)
-    const nextLotId = currentIndex >= 0 ? allLots[currentIndex + 1]?.id ?? null : null
+    setAuctionDecisions((prev) => {
+      const auctionDecisionMap = prev[selectedAuction.auctionId] ?? {}
+      const nextAuctionDecisionMap = { ...auctionDecisionMap }
 
-    setSwipeCue(cue)
-    window.setTimeout(() => {
-      setSwipeCue(null)
-      setAuctionDecisions((prev) => {
-        const auctionDecisionMap = prev[selectedAuction.auctionId] ?? {}
-        const next = {
-          ...prev,
-          [selectedAuction.auctionId]: {
-            ...auctionDecisionMap,
-            [currentLot.id]: decision,
-          },
-        }
-        saveAuctionDecisions(next)
-        return next
-      })
-      setFocusedLotId(nextLotId)
-    }, 120)
-  }, [allLots, currentLot, selectedAuction])
+      if (decision) {
+        nextAuctionDecisionMap[lotId] = decision
+      } else {
+        delete nextAuctionDecisionMap[lotId]
+      }
 
-  const moveLotFocus = useCallback((delta: number) => {
+      const next = {
+        ...prev,
+        [selectedAuction.auctionId]: nextAuctionDecisionMap,
+      }
+
+      saveAuctionDecisions(next)
+      return next
+    })
+  }, [selectedAuction])
+
+  const moveLotFocus = useCallback((delta: number, cue?: 'left' | 'right', skipAutoIgnore = false) => {
     if (!allLots.length) {
       return
     }
 
-    if (!currentLot) {
-      if (delta < 0) {
-        setFocusedLotId(allLots[allLots.length - 1].id)
-      } else if (delta > 0) {
-        setFocusedLotId(allLots[0].id)
+    const move = () => {
+      if (!currentLot) {
+        if (delta < 0) {
+          setFocusedLotId(allLots[allLots.length - 1].id)
+        } else if (delta > 0) {
+          setFocusedLotId(allLots[0].id)
+        }
+        return
       }
+
+      const index = allLots.findIndex((lot) => lot.id === currentLot.id)
+      if (index < 0) {
+        return
+      }
+
+      if (delta > 0 && !skipAutoIgnore && selectedAuctionDecisions[currentLot.id] !== 'saved') {
+        setLotDecision(currentLot.id, 'ignored')
+      }
+
+      const target = allLots[index + delta]
+      if (!target) {
+        if (delta > 0) {
+          setFocusedLotId(null)
+        }
+        return
+      }
+
+      setFocusedLotId(target.id)
+    }
+
+    if (!cue) {
+      move()
       return
     }
 
-    const index = allLots.findIndex((lot) => lot.id === currentLot.id)
-    if (index < 0) {
+    setSwipeCue(cue)
+    window.setTimeout(() => {
+      setSwipeCue(null)
+      move()
+    }, 120)
+  }, [allLots, currentLot, selectedAuctionDecisions, setLotDecision])
+
+  const favoriteCurrentLot = useCallback(() => {
+    if (!currentLot) {
       return
     }
 
-    const target = allLots[index + delta]
-    if (!target) {
-      return
-    }
-
-    setFocusedLotId(target.id)
-  }, [allLots, currentLot])
+    setLotDecision(currentLot.id, 'saved')
+    moveLotFocus(1, 'right', true)
+  }, [currentLot, moveLotFocus, setLotDecision])
 
   useEffect(() => {
     saveActiveView(activeView)
@@ -179,18 +206,18 @@ function App() {
 
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        triggerDecision('ignored', 'left')
+        moveLotFocus(-1, 'left')
       }
 
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        triggerDecision('saved', 'right')
+        moveLotFocus(1, 'right')
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [activeView, currentLot, selectedAuction, triggerDecision])
+  }, [activeView, currentLot, moveLotFocus, selectedAuction])
 
   useEffect(() => {
     if (activeView !== 'swipe' || currentLotIndex < 0) {
@@ -389,10 +416,11 @@ function App() {
     }
 
     if (delta > 0) {
-      triggerDecision('saved', 'right')
-    } else {
-      triggerDecision('ignored', 'left')
+      moveLotFocus(1, 'right')
+      return
     }
+
+    moveLotFocus(-1, 'left')
   }
 
   return (
@@ -636,7 +664,7 @@ function App() {
                     onTouchEnd={(event) => onTouchEnd(event.changedTouches[0].clientX)}
                   >
                     <div className="swipe-image-wrap">
-                      <a href={currentLot.itemUrl} target="_blank" rel="noreferrer" className="swipe-image-link">
+                      <div className="swipe-image-link" onDoubleClick={favoriteCurrentLot}>
                         <div className="lot-chip lot-chip-overlay">Lot {currentLot.lotNumber}</div>
                         {currentLotDecision === 'saved' || currentLotDecision === 'ignored' ? (
                           <div
@@ -702,10 +730,13 @@ function App() {
                       ) : (
                         <div className="image-placeholder">No image available</div>
                       )}
-                      </a>
+                      </div>
                     </div>
                     <div className="swipe-content">
                       <h3>{currentLot.title}</h3>
+                      <a href={currentLot.itemUrl} target="_blank" rel="noreferrer">
+                        Open Lot Listing
+                      </a>
                     </div>
                   </article>
                 ) : (
@@ -719,19 +750,16 @@ function App() {
                 )}
 
                 <div className="decision-row">
-                  <button type="button" className="decision ignore" onClick={() => triggerDecision('ignored', 'left')} disabled={!currentLot}>
-                    Ignore (←)
-                  </button>
-                  <button type="button" className="decision save" onClick={() => triggerDecision('saved', 'right')} disabled={!currentLot}>
-                    Save (→)
+                  <button type="button" className="decision save" onClick={favoriteCurrentLot} disabled={!currentLot}>
+                    Favorite
                   </button>
                 </div>
 
                 <div className="history-row">
-                  <button type="button" onClick={() => moveLotFocus(-1)} disabled={!canGoBack}>
+                  <button type="button" onClick={() => moveLotFocus(-1, 'left')} disabled={!canGoBack}>
                     Back
                   </button>
-                  <button type="button" onClick={() => moveLotFocus(1)} disabled={!canGoForward}>
+                  <button type="button" onClick={() => moveLotFocus(1, 'right')} disabled={!canGoForward}>
                     Forward
                   </button>
                 </div>

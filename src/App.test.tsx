@@ -110,7 +110,7 @@ describe('App', () => {
       expect(screen.getByText('Test Lot')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+    await user.click(screen.getByRole('button', { name: 'Forward' }))
 
     expect(await screen.findByRole('button', { name: 'Go to Favorites' })).toBeInTheDocument()
 
@@ -138,17 +138,17 @@ describe('App', () => {
       expect(screen.getByText('Test Lot')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+    await user.click(screen.getByRole('button', { name: 'Forward' }))
 
     expect(await screen.findByText('Deck complete')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Back' }))
-    expect(screen.getByText('Test Lot')).toBeInTheDocument()
+    expect(await screen.findByText('Test Lot')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Ignore (←)' }))
+    await user.click(screen.getByRole('button', { name: 'Forward' }))
     expect(await screen.findByText('Deck complete')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Forward' }))
-    expect(screen.getByText('Test Lot')).toBeInTheDocument()
+    expect(await screen.findByText('Test Lot')).toBeInTheDocument()
   })
 })

@@ -698,7 +698,7 @@ button.danger {
 .decision-row {
   margin-top: 0.85rem;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.6rem;
 }
 
@@ -707,11 +707,6 @@ button.danger {
   min-height: 2.7rem;
   padding: 0.8rem 0.5rem;
   font-size: 1rem;
-}
-
-.decision-row .ignore {
-  background: linear-gradient(120deg, #c83434, #f05656);
-  border-color: rgba(255, 184, 184, 0.5);
 }
 
 .decision-row .save {
