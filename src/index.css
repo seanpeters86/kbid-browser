@@ -484,10 +484,7 @@ button.danger {
 .swipe-auction-meta {
   margin: 0.3rem 0 0;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
   overflow-wrap: break-word;
-  word-break: break-word;
 }
 
 .swipe-stats {
