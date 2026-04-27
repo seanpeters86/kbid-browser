@@ -398,6 +398,7 @@ button.danger {
 
 .browse-card p,
 .browse-card small {
+  display: block;
   margin: 0.25rem 0;
   color: var(--muted);
   overflow: hidden;
@@ -443,8 +444,8 @@ button.danger {
 .meta {
   margin: 0.25rem 0;
   color: var(--muted);
-  overflow-wrap: break-word;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .auction-list li > div > strong {
