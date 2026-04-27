@@ -745,7 +745,7 @@ function App() {
             {selectedAuction?.data ? (
               <>
                 <div className="swipe-header">
-                  <div>
+                  <div className="swipe-header-info">
                     <h2 className="swipe-auction-title">{selectedAuction.data.title}</h2>
                     <p className="swipe-auction-meta">
                       {[
