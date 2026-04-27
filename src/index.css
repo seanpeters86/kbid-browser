@@ -362,6 +362,7 @@ button.danger {
   padding: 0.7rem;
   background: rgba(13, 22, 33, 0.8);
   position: relative;
+  min-width: 0;
 }
 
 .browse-open-link {
@@ -433,6 +434,7 @@ button.danger {
   border-radius: 0.85rem;
   padding: 0.7rem;
   background: rgba(12, 21, 33, 0.7);
+  min-width: 0;
 }
 
 .auction-list li.selected {
